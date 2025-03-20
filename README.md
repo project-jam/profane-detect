@@ -3,7 +3,7 @@
 >
 > including the homoglyph characters are extracted from the unicode homoglyph list, and modified by us to ensure safety
 
-# @project-jam/profane-detect
+# project jam's profane detection system
 
 universal profanity detection that handles obfuscated text, homoglyphs, and multiple character variations. detects attempts to bypass filters using special characters, similar-looking letters, or subtle modifications.
 
