@@ -1,0 +1,44 @@
+{
+  "name": "@project-jam/profane-detect",
+  "version": "1.0.0",
+  "description": "a professionnal proface detector, using the entire homoglyph characters, a big list of bad words, and some salt and pepper >:)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist/",
+    "raw_data/"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test:ts": "tsx test/test.ts",
+    "test:esm": "node test/test.mjs",
+    "test:cjs": "node test/test.cjs",
+    "test": "npm run test:ts && npm run test:esm && npm run test:cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/project-jam/profane-detect.git"
+  },
+  "keywords": [
+    "profanity",
+    "filter",
+    "moderation",
+    "content",
+    "detection",
+    "smart detection"
+  ],
+  "author": "Project Jam",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/project-jam/profane-detect/issues"
+  },
+  "homepage": "https://github.com/project-jam/profane-detect#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^18.0.0",
+    "tsx": "^4.6.2"
+  }
+}
