@@ -11,6 +11,7 @@ const testCases = [
   "ｆｕｃｋ", // fullwidth characters
   "sh!t", // substitution
   "nigga",
+  "ja",
 ];
 
 console.log("Basic Detection Tests:");
