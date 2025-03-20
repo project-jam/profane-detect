@@ -12,9 +12,9 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
-    "test:ts": "tsx test/test.ts",
-    "test:esm": "node test/test.mjs",
-    "test:cjs": "node test/test.cjs",
+    "test:ts": "bun test/test.ts",
+    "test:esm": "bun test/test.mjs",
+    "test:cjs": "bun test/test.cjs",
     "test": "npm run test:ts && npm run test:esm && npm run test:cjs"
   },
   "repository": {

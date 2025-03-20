@@ -1,0 +1,46 @@
+# .github/workflows/publish.yml
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".gitignore"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # Setup Bun for testing
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      # Setup Node for publishing
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      # Install dependencies with Bun
+      - name: Install dependencies
+        run: bun install
+
+      # Build with Bun
+      - name: Build
+        run: bun run build
+
+      # Run tests with Bun
+      - name: Run tests
+        run: bun test
+
+      # Publish with npm
+      - name: Publish to npm
+        if: success()
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
