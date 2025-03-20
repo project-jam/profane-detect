@@ -16,6 +16,11 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 - 🌐 unicode support
 - 📦 works with esm, commonjs, and typescript
 
+## working on
+
+- [ ] universal language support
+- [ ] custom homoglyph mapping
+
 ## installation
 
 ```bash
