@@ -13,6 +13,8 @@ const testCases = [
   "nigga",
   "ja",
   "cat",
+  "duck",
+  "yippee",
 ];
 
 console.log("Basic Detection Tests:");
