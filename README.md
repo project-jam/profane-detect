@@ -24,7 +24,7 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 ## installation
 
 ```bash
-npm install @project-jam/profane-detect
+npm install @project-jam-org/profane-detect
 ```
 
 ## usage
