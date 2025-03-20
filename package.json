@@ -1,6 +1,6 @@
 {
   "name": "@project-jam-org/profane-detect",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "a professionnal proface detector, using the entire homoglyph characters, a big list of bad words, and some salt and pepper >:)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

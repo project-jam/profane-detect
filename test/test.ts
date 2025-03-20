@@ -10,6 +10,7 @@ const testCases = [
   "assessment", // safe word
   "ｆｕｃｋ", // fullwidth characters
   "sh!t", // substitution
+  "nigga",
 ];
 
 console.log("Basic Detection Tests:");

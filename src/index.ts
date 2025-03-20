@@ -10,10 +10,14 @@ function loadHomoglyphMapping(filePath: string): Record<string, string> {
   const mapping: Record<string, string> = {};
   const content = fs.readFileSync(filePath, "utf-8");
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
   for (const line of lines) {
     const chars = Array.from(line);
     if (chars.length > 0) {
+      // Use the first non-whitespace character as the base character
       const base = chars.find((c) => c.trim()) || chars[0];
+
+      // Map all characters in the line to the base character
       for (const char of chars) {
         if (char.trim()) {
           mapping[char] = base;
@@ -21,6 +25,7 @@ function loadHomoglyphMapping(filePath: string): Record<string, string> {
       }
     }
   }
+
   return mapping;
 }
 
@@ -79,11 +84,19 @@ export class ProfaneDetect {
   // • Lowercasing, and then
   // • Mapping via the homoglyph mapping.
   normalize(text: string): string {
+    // First decompose and remove diacritical marks
     const decomposed = text.normalize("NFD").replace(/[\u0300-\u036F]/g, "");
+
+    // Remove invisible characters
     const noInvisible = decomposed.replace(/[\u200B-\u200D\uFEFF]/g, "");
-    const noAsterisk = noInvisible.replace(/\*/g, "");
-    const cleaned = noAsterisk.replace(/[._\-~]/g, "").toLowerCase();
-    return Array.from(cleaned)
+
+    // Convert to lowercase if not case sensitive
+    const lowered = this.caseSensitive
+      ? noInvisible
+      : noInvisible.toLowerCase();
+
+    // Map each character through the homoglyph mapping
+    return Array.from(lowered)
       .map((char) => this.homoglyphMapping[char] || char)
       .join("");
   }
