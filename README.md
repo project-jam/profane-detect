@@ -172,6 +172,6 @@ interface DetectionEntry {
 
 ## contributing
 
-pull requests are welcome. for major changes, please open an issue first to discuss what you would like to change, or [email](mailto:contact@project-jam.is-a.dev) us.
+pull requests are welcome. for major changes, please open an issue first to discuss what you would like to change, or [email](mailto:contact@project-jam.is-a.dev) us, we're happy to receive emails <:)
 
 please make sure to update tests as appropriate, otherwise it may cause some issues. **oh wow! issues? GET OUT AND STOP IF YOU'RE DOING PROBLEMS!**
