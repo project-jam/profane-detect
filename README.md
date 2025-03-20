@@ -32,7 +32,7 @@ npm install @project-jam-org/profane-detect
 ### basic detection
 
 ```javascript
-import { ProfaneDetect } from '@project-jam/profane-detect';
+import { ProfaneDetect } from '@project-jam-org/profane-detect';
 
 const detector = new ProfaneDetect();
 
