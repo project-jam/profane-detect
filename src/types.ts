@@ -13,6 +13,7 @@ export interface DetectionResult {
     exactMatches: number;
     fuzzyMatches: number;
     totalChecked: number;
+    whitelistedSkips: number;
   };
 }
 
@@ -28,5 +29,6 @@ export interface DetectionEntry {
     caseSensitive: boolean;
     totalSafeWords: number;
     totalBannedWords: number;
+    totalWhitelisted: number;
   };
 }

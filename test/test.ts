@@ -12,7 +12,7 @@ const testCases = [
   "sh!t", // substitution
   "nigga",
   "ja",
-  "country=ja cats",
+  "cat",
 ];
 
 console.log("Basic Detection Tests:");
