@@ -157,6 +157,10 @@ export class ProfaneDetect {
     getWhitelist() {
         return Array.from(this.whitelist);
     }
+    debugMapping(char) {
+        const normalizedChar = this.caseSensitive ? char : char.toLowerCase();
+        return this.homoglyphMapping[normalizedChar] || char;
+    }
     fuzzyMatch(text, banned) {
         // Only do fuzzy matching for strings of similar length
         if (Math.abs(text.length - banned.length) > 1) {

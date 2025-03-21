@@ -12,5 +12,6 @@ export declare class ProfaneDetect {
     detect(text: string): DetectionResult;
     toJson(text: string): DetectionEntry;
     getWhitelist(): string[];
+    debugMapping(char: string): string;
     private fuzzyMatch;
 }
