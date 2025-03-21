@@ -9,15 +9,11 @@ export declare class ProfaneDetect {
     private safeWords;
     private whitelist;
     constructor(options?: ProfaneDetectOptions);
-    private cacheNormalizedSafeWords;
-    private cacheNormalizedBannedWords;
-    private cacheNormalizedWhitelist;
+    private cacheNormalizedWords;
     normalize(text: string): string;
-    private isSafeWord;
-    private isPartOfWhitelisted;
-    private fuzzyMatch;
-    private isStandalone;
+    private isWhitelisted;
     detect(text: string): DetectionResult;
+    private fuzzyMatch;
     toJson(text: string): DetectionEntry;
     getWhitelist(): string[];
     debugMapping(char: string): string;
