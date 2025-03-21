@@ -36,7 +36,7 @@ function loadWordList(path: string): string[] {
 }
 
 const CHAR_MAPPING_PATH = path.join(__dirname, "../raw_data/chars.txt");
-const WORDS_PATH = path.join(__dirname, "../raw_data/words.json");
+const WORDS_PATH = path.join(__dirname, "../raw_data/languages/en.json");
 const WHITELIST_PATH = path.join(__dirname, "../raw_data/whitelist.json");
 
 const defaultHomoglyphMapping = loadHomoglyphMapping(CHAR_MAPPING_PATH);
