@@ -3,15 +3,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CHAR_MAPPING_PATH = path.join(__dirname, "../raw_data/chars.txt");
-const WORDS_PATH = path.join(__dirname, "../raw_data/words.json");
-const WHITELIST_PATH = path.join(__dirname, "../raw_data/whitelist.json");
-function loadHomoglyphMapping() {
-    const content = fs.readFileSync(CHAR_MAPPING_PATH, "utf-8");
+function loadHomoglyphMapping(filePath) {
     const mapping = {};
-    content.split(/\r?\n/).forEach((line) => {
-        if (!line.trim())
-            return;
+    const content = fs.readFileSync(filePath, "utf-8");
+    const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    for (const line of lines) {
         const chars = Array.from(line);
         if (chars.length > 0) {
             const base = chars.find((c) => c.trim()) || chars[0];
@@ -20,106 +16,134 @@ function loadHomoglyphMapping() {
                     mapping[char] = base;
             });
         }
-    });
+    }
     return mapping;
 }
 function loadWordList(path) {
     const content = fs.readFileSync(path, "utf-8");
     return JSON.parse(content);
 }
-const defaultHomoglyphMapping = loadHomoglyphMapping();
+const CHAR_MAPPING_PATH = path.join(__dirname, "../raw_data/chars.txt");
+const WORDS_PATH = path.join(__dirname, "../raw_data/words.json");
+const WHITELIST_PATH = path.join(__dirname, "../raw_data/whitelist.json");
+const defaultHomoglyphMapping = loadHomoglyphMapping(CHAR_MAPPING_PATH);
 const defaultBannedWords = loadWordList(WORDS_PATH);
 const defaultWhitelist = loadWordList(WHITELIST_PATH);
 export class ProfaneDetect {
     constructor(options) {
+        this.fastLookup = {};
+        this.userWhitelist = new Set();
+        this.normalizedBannedWords = new Map();
+        this.normalizedWhitelist = new Set();
+        this.lookupHits = 0;
         this.bannedWords = options?.bannedWords || defaultBannedWords;
         this.homoglyphMapping =
             options?.homoglyphMapping || defaultHomoglyphMapping;
         this.caseSensitive = options?.caseSensitive || false;
-        // Initialize whitelist with both default and custom safe words
-        this.whitelist = new Set([
-            ...defaultWhitelist,
-            ...(options?.safeWords || []),
-        ]);
-        // Initialize normalized caches
-        this.normalizedBannedWords = new Map();
-        this.normalizedWhitelist = new Set();
-        this.initializeNormalizedCaches();
+        this.useFastLookup = options?.useFastLookup !== false; // Enabled by default
+        // Initialize caches
+        this.initializeCaches(options?.safeWords);
     }
-    initializeNormalizedCaches() {
-        // Cache normalized whitelisted words
-        for (const word of this.whitelist) {
-            this.normalizedWhitelist.add(this.normalize(word));
+    initializeCaches(safeWords) {
+        // Initialize fast lookup if enabled
+        if (this.useFastLookup) {
+            // Add default whitelist to fast lookup
+            for (const word of defaultWhitelist) {
+                const normalized = this.normalize(word);
+                this.fastLookup[normalized] = {
+                    status: "safe",
+                    reason: "default whitelist",
+                    originalWord: word,
+                };
+            }
+            // Add banned words to fast lookup
+            for (const word of this.bannedWords) {
+                const normalized = this.normalize(word);
+                this.fastLookup[normalized] = {
+                    status: "banned",
+                    reason: "banned word",
+                    originalWord: word,
+                };
+            }
         }
-        // Cache normalized banned words
-        for (const word of this.bannedWords) {
-            const normalized = this.normalize(word);
-            if (normalized.length >= 3) {
+        // Add user's custom safe words
+        if (safeWords) {
+            for (const word of safeWords) {
+                const normalized = this.normalize(word);
+                this.userWhitelist.add(normalized);
+                if (this.useFastLookup) {
+                    this.fastLookup[normalized] = {
+                        status: "pass",
+                        reason: "user whitelist",
+                        originalWord: word,
+                    };
+                }
+            }
+        }
+        // Initialize normalized caches for non-fast-lookup mode
+        if (!this.useFastLookup) {
+            for (const word of this.bannedWords) {
+                const normalized = this.normalize(word);
                 this.normalizedBannedWords.set(normalized, word);
+            }
+            for (const word of defaultWhitelist) {
+                this.normalizedWhitelist.add(this.normalize(word));
             }
         }
     }
     normalize(text) {
-        // Remove diacritical marks
-        let normalized = text.normalize("NFD").replace(/[\u0300-\u036F]/g, "");
-        // Remove invisible characters
-        normalized = normalized.replace(/[\u200B-\u200D\uFEFF]/g, "");
-        // Remove common obfuscation characters
-        normalized = normalized.replace(/[-_.*+!@#$%^&()]/g, "");
-        // Convert to lowercase if not case sensitive
+        let normalized = text
+            .normalize("NFD")
+            .replace(/[\u0300-\u036F]/g, "") // Remove diacritics
+            .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
+            .replace(/[-_.*+!@#$%^&()]/g, ""); // Remove common obfuscation
         if (!this.caseSensitive) {
             normalized = normalized.toLowerCase();
         }
-        // Map homoglyphs
         return Array.from(normalized)
             .map((char) => this.homoglyphMapping[char] || char)
             .join("");
     }
     detect(text) {
-        // Normalize input text
         const normalizedText = this.normalize(text);
-        // Check if exact input is whitelisted
-        if (this.normalizedWhitelist.has(normalizedText)) {
-            return {
-                found: false,
-                matches: [],
-                normalized: normalizedText,
-                metrics: {
-                    exactMatches: 0,
-                    fuzzyMatches: 0,
-                    totalChecked: 1,
-                    whitelistedSkips: 1,
-                },
-            };
-        }
-        // Split into words and check each
         const words = normalizedText.split(/\s+/);
         const matches = new Set();
         let whitelistedSkips = 0;
-        let exactMatches = 0;
-        let fuzzyMatches = 0;
-        let totalChecked = 0;
+        let lookupHits = 0;
         for (const word of words) {
-            const normalizedWord = this.normalize(word);
-            // Skip whitelisted words
-            if (this.normalizedWhitelist.has(normalizedWord)) {
-                whitelistedSkips++;
+            if (!word)
                 continue;
-            }
-            // Check against banned words
-            for (const [bannedNormalized, originalBanned] of this
-                .normalizedBannedWords) {
-                totalChecked++;
-                // Exact match check
-                if (normalizedWord === bannedNormalized) {
-                    matches.add(originalBanned);
-                    exactMatches++;
+            if (this.useFastLookup) {
+                // Fast lookup path
+                const lookupResult = this.fastLookup[word];
+                if (lookupResult) {
+                    lookupHits++;
+                    if (lookupResult.status === "banned") {
+                        matches.add(lookupResult.originalWord || word);
+                    }
+                    else if (lookupResult.status === "safe" ||
+                        lookupResult.status === "pass") {
+                        whitelistedSkips++;
+                        continue;
+                    }
                 }
-                // Fuzzy match check (only if not already matched)
-                else if (!matches.has(originalBanned) &&
-                    this.fuzzyMatch(normalizedWord, bannedNormalized)) {
-                    matches.add(originalBanned);
-                    fuzzyMatches++;
+                else {
+                    // Add to cache for future
+                    this.fastLookup[word] = { status: "safe", reason: "passed checks" };
+                }
+            }
+            else {
+                // Traditional path
+                if (this.normalizedWhitelist.has(word)) {
+                    whitelistedSkips++;
+                    continue;
+                }
+                for (const [bannedNormalized, originalBanned] of this
+                    .normalizedBannedWords) {
+                    if (word === bannedNormalized) {
+                        matches.add(originalBanned);
+                        break;
+                    }
                 }
             }
         }
@@ -128,12 +152,39 @@ export class ProfaneDetect {
             matches: Array.from(matches),
             normalized: normalizedText,
             metrics: {
-                exactMatches,
-                fuzzyMatches,
-                totalChecked,
+                exactMatches: matches.size,
+                fuzzyMatches: 0,
+                totalChecked: words.length,
                 whitelistedSkips,
+                lookupHits: this.useFastLookup ? lookupHits : undefined,
             },
         };
+    }
+    checkWord(word) {
+        if (!this.useFastLookup) {
+            throw new Error("Fast lookup is disabled. Enable it in constructor options.");
+        }
+        const normalized = this.normalize(word);
+        // Check user whitelist
+        if (this.userWhitelist.has(normalized)) {
+            return { status: "pass", reason: "user whitelist" };
+        }
+        // Check fast lookup cache
+        return (this.fastLookup[normalized] || {
+            status: "safe",
+            reason: "not found in cache",
+        });
+    }
+    addToWhitelist(word) {
+        const normalized = this.normalize(word);
+        this.userWhitelist.add(normalized);
+        if (this.useFastLookup) {
+            this.fastLookup[normalized] = {
+                status: "pass",
+                reason: "user added",
+                originalWord: word,
+            };
+        }
     }
     toJson(text) {
         const result = this.detect(text);
@@ -148,51 +199,18 @@ export class ProfaneDetect {
             },
             config: {
                 caseSensitive: this.caseSensitive,
-                totalSafeWords: this.whitelist.size,
+                totalSafeWords: this.userWhitelist.size,
                 totalBannedWords: this.bannedWords.length,
-                totalWhitelisted: this.normalizedWhitelist.size,
+                totalWhitelisted: defaultWhitelist.length,
+                usingFastLookup: this.useFastLookup,
+                cacheSizeBytes: this.useFastLookup
+                    ? Buffer.from(JSON.stringify(this.fastLookup)).length
+                    : undefined,
             },
         };
-    }
-    getWhitelist() {
-        return Array.from(this.whitelist);
     }
     debugMapping(char) {
         const normalizedChar = this.caseSensitive ? char : char.toLowerCase();
         return this.homoglyphMapping[normalizedChar] || char;
     }
-    fuzzyMatch(text, banned) {
-        // Only do fuzzy matching for strings of similar length
-        if (Math.abs(text.length - banned.length) > 1) {
-            return false;
-        }
-        return calculateEditDistance(text, banned) <= 1;
-    }
-}
-// Helper function for calculating edit distance
-function calculateEditDistance(str1, str2) {
-    const m = str1.length;
-    const n = str2.length;
-    const dp = Array(m + 1)
-        .fill(0)
-        .map(() => Array(n + 1).fill(0));
-    // Initialize first row and column
-    for (let i = 0; i <= m; i++)
-        dp[i][0] = i;
-    for (let j = 0; j <= n; j++)
-        dp[0][j] = j;
-    // Fill dp table
-    for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-            if (str1[i - 1] === str2[j - 1]) {
-                dp[i][j] = dp[i - 1][j - 1];
-            }
-            else {
-                dp[i][j] = Math.min(dp[i - 1][j] + 1, // deletion
-                dp[i][j - 1] + 1, // insertion
-                dp[i - 1][j - 1] + 1);
-            }
-        }
-    }
-    return dp[m][n];
 }

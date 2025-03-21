@@ -20,6 +20,7 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 
 - [ ] universal language support
 - [ ] custom homoglyph mapping
+- [x] fast lookup
 
 ## installation
 
@@ -168,6 +169,50 @@ interface DetectionEntry {
     totalBannedWords: number;
   }
 }
+```
+
+## fast lookup cache
+
+the package includes a pre-built cache of common profane words for fast lookup. the cache is stored in `src/cache.json` and can be updated using the `update-cache` script.
+
+```typescript
+// enable fast lookup
+const detector = new ProfaneDetect({
+  useFastLookup: true,
+  safeWords: ["custom", "safe", "words"]
+});
+
+// check individual words quickly
+const status = detector.checkWord("someword");
+console.log(status);
+/* output:
+{
+  status: "safe" | "banned" | "pass",
+  reason: string,
+  originalWord?: string
+}
+*/
+
+// add words to whitelist
+detector.addToWhitelist("newword");
+
+// get detailed metrics including cache hits
+const result = detector.detect("some text");
+console.log(result);
+/* output:
+{
+  found: boolean,
+  matches: string[],
+  normalized: string,
+  metrics: {
+    exactMatches: number,
+    fuzzyMatches: number,
+    totalChecked: number,
+    whitelistedSkips: number,
+    lookupHits: number  // only when fast lookup is enabled
+  }
+}
+*/
 ```
 
 ## contributing
