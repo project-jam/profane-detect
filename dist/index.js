@@ -3,139 +3,121 @@ import path from "path";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-function loadHomoglyphMapping(filePath) {
+const CHAR_MAPPING_PATH = path.join(__dirname, "../raw_data/chars.txt");
+const WORDS_PATH = path.join(__dirname, "../raw_data/words.json");
+const WHITELIST_PATH = path.join(__dirname, "../raw_data/whitelist.json");
+function loadHomoglyphMapping() {
+    const content = fs.readFileSync(CHAR_MAPPING_PATH, "utf-8");
     const mapping = {};
-    const content = fs.readFileSync(filePath, "utf-8");
-    const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
-    for (const line of lines) {
+    content.split(/\r?\n/).forEach((line) => {
+        if (!line.trim())
+            return;
         const chars = Array.from(line);
         if (chars.length > 0) {
             const base = chars.find((c) => c.trim()) || chars[0];
-            for (const char of chars) {
-                if (char.trim()) {
+            chars.forEach((char) => {
+                if (char.trim())
                     mapping[char] = base;
-                }
-            }
+            });
         }
-    }
+    });
     return mapping;
 }
-function loadBannedWords(filePath) {
-    const content = fs.readFileSync(filePath, "utf-8");
+function loadWordList(path) {
+    const content = fs.readFileSync(path, "utf-8");
     return JSON.parse(content);
 }
-function loadWhitelist(filePath) {
-    const content = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(content);
-}
-const charsTxtPath = path.join(__dirname, "../raw_data/chars.txt");
-const wordsJsonPath = path.join(__dirname, "../raw_data/words.json");
-const whitelistJsonPath = path.join(__dirname, "../raw_data/whitelist.json");
-const defaultHomoglyphMapping = loadHomoglyphMapping(charsTxtPath);
-const defaultBannedWords = loadBannedWords(wordsJsonPath);
-const defaultWhitelist = loadWhitelist(whitelistJsonPath);
+const defaultHomoglyphMapping = loadHomoglyphMapping();
+const defaultBannedWords = loadWordList(WORDS_PATH);
+const defaultWhitelist = loadWordList(WHITELIST_PATH);
 export class ProfaneDetect {
     constructor(options) {
-        this.normalizedBannedWords = new Map();
-        this.normalizedSafeWords = new Set();
-        this.normalizedWhitelist = new Set();
         this.bannedWords = options?.bannedWords || defaultBannedWords;
         this.homoglyphMapping =
             options?.homoglyphMapping || defaultHomoglyphMapping;
         this.caseSensitive = options?.caseSensitive || false;
-        // Initialize whitelist
-        this.whitelist = new Set(defaultWhitelist);
-        // Initialize safe words with both default whitelist and user-provided safe words
-        this.safeWords = new Set([
+        // Initialize whitelist with both default and custom safe words
+        this.whitelist = new Set([
             ...defaultWhitelist,
             ...(options?.safeWords || []),
         ]);
-        this.cacheNormalizedWords();
+        // Initialize normalized caches
+        this.normalizedBannedWords = new Map();
+        this.normalizedWhitelist = new Set();
+        this.initializeNormalizedCaches();
     }
-    cacheNormalizedWords() {
-        // Cache normalized safe words
-        for (const word of this.safeWords) {
-            this.normalizedSafeWords.add(this.normalize(word));
-        }
-        // Cache normalized whitelist words
+    initializeNormalizedCaches() {
+        // Cache normalized whitelisted words
         for (const word of this.whitelist) {
             this.normalizedWhitelist.add(this.normalize(word));
         }
         // Cache normalized banned words
         for (const word of this.bannedWords) {
-            const norm = this.normalize(word);
-            if (norm.length < 3)
-                continue; // Skip very short words
-            if (!this.normalizedBannedWords.has(norm)) {
-                this.normalizedBannedWords.set(norm, word);
+            const normalized = this.normalize(word);
+            if (normalized.length >= 3) {
+                this.normalizedBannedWords.set(normalized, word);
             }
         }
     }
     normalize(text) {
-        const decomposed = text.normalize("NFD").replace(/[\u0300-\u036F]/g, "");
-        const noInvisible = decomposed.replace(/[\u200B-\u200D\uFEFF]/g, "");
-        const noObfuscation = noInvisible.replace(/[-_.*+!@#$%^&()]/g, "");
-        const lowered = this.caseSensitive
-            ? noObfuscation
-            : noObfuscation.toLowerCase();
-        return Array.from(lowered)
+        // Remove diacritical marks
+        let normalized = text.normalize("NFD").replace(/[\u0300-\u036F]/g, "");
+        // Remove invisible characters
+        normalized = normalized.replace(/[\u200B-\u200D\uFEFF]/g, "");
+        // Remove common obfuscation characters
+        normalized = normalized.replace(/[-_.*+!@#$%^&()]/g, "");
+        // Convert to lowercase if not case sensitive
+        if (!this.caseSensitive) {
+            normalized = normalized.toLowerCase();
+        }
+        // Map homoglyphs
+        return Array.from(normalized)
             .map((char) => this.homoglyphMapping[char] || char)
             .join("");
     }
-    isWhitelisted(text) {
-        const normalizedText = this.normalize(text);
-        // Check if the exact text is whitelisted
-        if (this.normalizedWhitelist.has(normalizedText)) {
-            return true;
-        }
-        // Check if the text is part of any whitelisted word
-        for (const whitelisted of this.normalizedWhitelist) {
-            if (normalizedText === whitelisted) {
-                return true;
-            }
-        }
-        return false;
-    }
     detect(text) {
-        // First check if the entire text is whitelisted
-        if (this.isWhitelisted(text)) {
+        // Normalize input text
+        const normalizedText = this.normalize(text);
+        // Check if exact input is whitelisted
+        if (this.normalizedWhitelist.has(normalizedText)) {
             return {
                 found: false,
                 matches: [],
-                normalized: this.normalize(text),
+                normalized: normalizedText,
                 metrics: {
                     exactMatches: 0,
                     fuzzyMatches: 0,
-                    totalChecked: 0,
+                    totalChecked: 1,
                     whitelistedSkips: 1,
                 },
             };
         }
-        const normalizedText = this.normalize(text);
+        // Split into words and check each
+        const words = normalizedText.split(/\s+/);
         const matches = new Set();
+        let whitelistedSkips = 0;
         let exactMatches = 0;
         let fuzzyMatches = 0;
         let totalChecked = 0;
-        let whitelistedSkips = 0;
-        // Split into words and check each
-        const words = normalizedText.split(/\s+/);
         for (const word of words) {
-            // Skip if word is in safe words
-            if (this.normalizedSafeWords.has(this.normalize(word))) {
+            const normalizedWord = this.normalize(word);
+            // Skip whitelisted words
+            if (this.normalizedWhitelist.has(normalizedWord)) {
                 whitelistedSkips++;
                 continue;
             }
             // Check against banned words
-            for (const [normalizedBanned, originalBanned] of this
+            for (const [bannedNormalized, originalBanned] of this
                 .normalizedBannedWords) {
                 totalChecked++;
-                if (word === normalizedBanned) {
+                // Exact match check
+                if (normalizedWord === bannedNormalized) {
                     matches.add(originalBanned);
                     exactMatches++;
-                    continue;
                 }
-                // Fuzzy match check only if not an exact match
-                if (this.fuzzyMatch(word, normalizedBanned)) {
+                // Fuzzy match check (only if not already matched)
+                else if (!matches.has(originalBanned) &&
+                    this.fuzzyMatch(normalizedWord, bannedNormalized)) {
                     matches.add(originalBanned);
                     fuzzyMatches++;
                 }
@@ -153,15 +135,12 @@ export class ProfaneDetect {
             },
         };
     }
-    fuzzyMatch(token, banned) {
-        return editDistance(token, banned) <= 1;
-    }
     toJson(text) {
-        const now = new Date();
         const result = this.detect(text);
+        const now = new Date();
         return {
             input: text,
-            result: result,
+            result,
             timestamp: {
                 time: now.toLocaleTimeString(),
                 date: now.toLocaleDateString(),
@@ -169,39 +148,45 @@ export class ProfaneDetect {
             },
             config: {
                 caseSensitive: this.caseSensitive,
-                totalSafeWords: this.safeWords.size,
+                totalSafeWords: this.whitelist.size,
                 totalBannedWords: this.bannedWords.length,
-                totalWhitelisted: this.whitelist.size,
+                totalWhitelisted: this.normalizedWhitelist.size,
             },
         };
     }
     getWhitelist() {
         return Array.from(this.whitelist);
     }
-    debugMapping(char) {
-        return (this.homoglyphMapping[this.caseSensitive ? char : char.toLowerCase()] ||
-            char);
+    fuzzyMatch(text, banned) {
+        // Only do fuzzy matching for strings of similar length
+        if (Math.abs(text.length - banned.length) > 1) {
+            return false;
+        }
+        return calculateEditDistance(text, banned) <= 1;
     }
 }
-// Helper function: calculate Levenshtein edit distance
-function editDistance(a, b) {
-    const dp = [];
-    const m = a.length;
-    const n = b.length;
-    for (let i = 0; i <= m; i++) {
-        dp[i] = [];
+// Helper function for calculating edit distance
+function calculateEditDistance(str1, str2) {
+    const m = str1.length;
+    const n = str2.length;
+    const dp = Array(m + 1)
+        .fill(0)
+        .map(() => Array(n + 1).fill(0));
+    // Initialize first row and column
+    for (let i = 0; i <= m; i++)
         dp[i][0] = i;
-    }
-    for (let j = 0; j <= n; j++) {
+    for (let j = 0; j <= n; j++)
         dp[0][j] = j;
-    }
+    // Fill dp table
     for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
-            if (a[i - 1] === b[j - 1]) {
+            if (str1[i - 1] === str2[j - 1]) {
                 dp[i][j] = dp[i - 1][j - 1];
             }
             else {
-                dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + 1);
+                dp[i][j] = Math.min(dp[i - 1][j] + 1, // deletion
+                dp[i][j - 1] + 1, // insertion
+                dp[i - 1][j - 1] + 1);
             }
         }
     }
