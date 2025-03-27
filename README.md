@@ -20,7 +20,7 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 
 - [x] fast lookup
 - [ ] universal language support
-- [ ] custom homoglyph mapping
+- [ ] custom homoglyph symbols
 - [ ] slangs
 
 ## installation
