@@ -18,9 +18,10 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 
 ## working on
 
+- [x] fast lookup
 - [ ] universal language support
 - [ ] custom homoglyph mapping
-- [x] fast lookup
+- [ ] slangs
 
 ## installation
 
