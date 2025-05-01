@@ -1,3 +1,5 @@
+[![NPM](https://nodei.co/npm/@projectjam/profane-detect.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/@projectjam/profane-detect/)
+
 > [!NOTE]
 > the bad words are extracted from the [profane-words](https://github.com/zacanger/profane-words) package, and modified by us
 >
