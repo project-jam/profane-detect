@@ -26,6 +26,8 @@ const testCases = [
   "cream f*ck", // mixed content
   "assessment pie cream", // all safe
   "mila",
+  "bigtitties",
+  "shɪt",
 ];
 
 console.log("Fast Lookup Detection Tests:");

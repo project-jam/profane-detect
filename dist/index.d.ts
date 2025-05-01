@@ -8,7 +8,6 @@ export declare class ProfaneDetect {
     private readonly userWhitelist;
     private readonly normalizedBannedWords;
     private readonly normalizedWhitelist;
-    private lookupHits;
     constructor(options?: ProfaneDetectOptions);
     private initializeCaches;
     normalize(text: string): string;
