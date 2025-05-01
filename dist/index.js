@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-// Helpers to load raw data
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 function loadHomoglyphMapping(filePath) {
@@ -10,23 +9,23 @@ function loadHomoglyphMapping(filePath) {
     const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
     for (const line of lines) {
         const chars = Array.from(line);
-        const base = chars.find((c) => c.trim()) || chars[0];
-        for (const char of chars) {
-            if (char.trim())
-                mapping[char] = base;
+        if (chars.length > 0) {
+            const base = chars.find((c) => c.trim()) || chars[0];
+            chars.forEach((char) => {
+                if (char.trim())
+                    mapping[char] = base;
+            });
         }
     }
     return mapping;
 }
-function loadWordList(filePath) {
-    const content = fs.readFileSync(filePath, "utf-8");
+function loadWordList(path) {
+    const content = fs.readFileSync(path, "utf-8");
     return JSON.parse(content);
 }
-// Paths to your raw data
 const CHAR_MAPPING_PATH = path.join(__dirname, "../raw_data/chars.txt");
 const WORDS_PATH = path.join(__dirname, "../raw_data/languages/en.json");
 const WHITELIST_PATH = path.join(__dirname, "../raw_data/whitelist.json");
-// Default data
 const defaultHomoglyphMapping = loadHomoglyphMapping(CHAR_MAPPING_PATH);
 const defaultBannedWords = loadWordList(WORDS_PATH);
 const defaultWhitelist = loadWordList(WHITELIST_PATH);
@@ -36,46 +35,44 @@ export class ProfaneDetect {
         this.userWhitelist = new Set();
         this.normalizedBannedWords = new Map();
         this.normalizedWhitelist = new Set();
+        this.lookupHits = 0;
         this.bannedWords = options?.bannedWords || defaultBannedWords;
         this.homoglyphMapping =
             options?.homoglyphMapping || defaultHomoglyphMapping;
         this.caseSensitive = options?.caseSensitive || false;
-        this.useFastLookup = options?.useFastLookup !== false; // default true
+        this.useFastLookup = options?.useFastLookup !== false; // Enabled by default
+        // Initialize caches
         this.initializeCaches(options?.safeWords);
     }
     initializeCaches(safeWords) {
-        // Precompute normalized default-whitelist
-        const normalizedDefaultWhitelist = new Set();
-        for (const word of defaultWhitelist) {
-            normalizedDefaultWhitelist.add(this.normalize(word));
-        }
+        // Initialize fast lookup if enabled
         if (this.useFastLookup) {
-            // 1) Add banned words first, skipping any in default whitelist
-            for (const word of this.bannedWords) {
-                const norm = this.normalize(word);
-                if (normalizedDefaultWhitelist.has(norm))
-                    continue;
-                this.fastLookup[norm] = {
-                    status: "banned",
-                    reason: "banned word",
-                    originalWord: word,
-                };
-            }
-            // 2) Add default whitelist (overwrites any banned)
+            // Add default whitelist to fast lookup
             for (const word of defaultWhitelist) {
-                const norm = this.normalize(word);
-                this.fastLookup[norm] = {
+                const normalized = this.normalize(word);
+                this.fastLookup[normalized] = {
                     status: "safe",
                     reason: "default whitelist",
                     originalWord: word,
                 };
             }
-            // 3) Add user-provided safeWords on top
-            if (safeWords) {
-                for (const word of safeWords) {
-                    const norm = this.normalize(word);
-                    this.userWhitelist.add(norm);
-                    this.fastLookup[norm] = {
+            // Add banned words to fast lookup
+            for (const word of this.bannedWords) {
+                const normalized = this.normalize(word);
+                this.fastLookup[normalized] = {
+                    status: "banned",
+                    reason: "banned word",
+                    originalWord: word,
+                };
+            }
+        }
+        // Add user's custom safe words
+        if (safeWords) {
+            for (const word of safeWords) {
+                const normalized = this.normalize(word);
+                this.userWhitelist.add(normalized);
+                if (this.useFastLookup) {
+                    this.fastLookup[normalized] = {
                         status: "pass",
                         reason: "user whitelist",
                         originalWord: word,
@@ -83,35 +80,23 @@ export class ProfaneDetect {
                 }
             }
         }
-        else {
-            // Non-fast lookup path: same ordering, different storage
-            // a) default whitelist
+        // Initialize normalized caches for non-fast-lookup mode
+        if (!this.useFastLookup) {
+            for (const word of this.bannedWords) {
+                const normalized = this.normalize(word);
+                this.normalizedBannedWords.set(normalized, word);
+            }
             for (const word of defaultWhitelist) {
                 this.normalizedWhitelist.add(this.normalize(word));
-            }
-            // b) banned words, skipping whitelist
-            for (const word of this.bannedWords) {
-                const norm = this.normalize(word);
-                if (!this.normalizedWhitelist.has(norm)) {
-                    this.normalizedBannedWords.set(norm, word);
-                }
-            }
-            // c) user whitelist
-            if (safeWords) {
-                for (const word of safeWords) {
-                    this.normalizedWhitelist.add(this.normalize(word));
-                }
             }
         }
     }
     normalize(text) {
         let normalized = text
-            .trim()
             .normalize("NFD")
-            .replace(/[\u0300-\u036F]/g, "")
-            .replace(/[\u200B-\u200D\uFEFF]/g, "")
-            .replace(/\s+/g, "~")
-            .replace(/[-_.*+!@#$%^&()]/g, "~");
+            .replace(/[\u0300-\u036F]/g, "") // Remove diacritics
+            .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
+            .replace(/[-_.*+!@#$%^&()]/g, ""); // Remove common obfuscation
         if (!this.caseSensitive) {
             normalized = normalized.toLowerCase();
         }
@@ -121,29 +106,45 @@ export class ProfaneDetect {
     }
     detect(text) {
         const normalizedText = this.normalize(text);
+        const words = normalizedText.split(/\s+/);
         const matches = new Set();
-        // Build normalizedBannedWords map on-the-fly for fastLookup path
-        if (this.useFastLookup && this.normalizedBannedWords.size === 0) {
-            for (const word of this.bannedWords) {
-                const norm = this.normalize(word);
-                if (!this.fastLookup[norm] ||
-                    this.fastLookup[norm].status !== "banned") {
-                    this.normalizedBannedWords.set(norm, word);
+        let whitelistedSkips = 0;
+        let lookupHits = 0;
+        for (const word of words) {
+            if (!word)
+                continue;
+            if (this.useFastLookup) {
+                // Fast lookup path
+                const lookupResult = this.fastLookup[word];
+                if (lookupResult) {
+                    lookupHits++;
+                    if (lookupResult.status === "banned") {
+                        matches.add(lookupResult.originalWord || word);
+                    }
+                    else if (lookupResult.status === "safe" ||
+                        lookupResult.status === "pass") {
+                        whitelistedSkips++;
+                        continue;
+                    }
+                }
+                else {
+                    // Add to cache for future
+                    this.fastLookup[word] = { status: "safe", reason: "passed checks" };
                 }
             }
-        }
-        for (const [bannedNorm, original] of this.normalizedBannedWords) {
-            let pattern;
-            if (bannedNorm.includes("~")) {
-                const parts = bannedNorm.split("~").map((p) => p.split("").join("~*"));
-                pattern = parts.join("~+");
-            }
             else {
-                pattern = bannedNorm.split("").join("~*");
-            }
-            const regex = new RegExp(pattern, "g");
-            if (regex.test(normalizedText)) {
-                matches.add(original);
+                // Traditional path
+                if (this.normalizedWhitelist.has(word)) {
+                    whitelistedSkips++;
+                    continue;
+                }
+                for (const [bannedNormalized, originalBanned] of this
+                    .normalizedBannedWords) {
+                    if (word === bannedNormalized) {
+                        matches.add(originalBanned);
+                        break;
+                    }
+                }
             }
         }
         return {
@@ -153,27 +154,32 @@ export class ProfaneDetect {
             metrics: {
                 exactMatches: matches.size,
                 fuzzyMatches: 0,
-                totalChecked: normalizedText.length,
-                whitelistedSkips: 0,
-                lookupHits: this.useFastLookup ? 0 : undefined,
+                totalChecked: words.length,
+                whitelistedSkips,
+                lookupHits: this.useFastLookup ? lookupHits : undefined,
             },
         };
     }
     checkWord(word) {
         if (!this.useFastLookup) {
-            throw new Error("Fast lookup is disabled.");
+            throw new Error("Fast lookup is disabled. Enable it in constructor options.");
         }
-        const norm = this.normalize(word);
-        if (this.userWhitelist.has(norm)) {
+        const normalized = this.normalize(word);
+        // Check user whitelist
+        if (this.userWhitelist.has(normalized)) {
             return { status: "pass", reason: "user whitelist" };
         }
-        return this.fastLookup[norm] || { status: "safe", reason: "not found" };
+        // Check fast lookup cache
+        return (this.fastLookup[normalized] || {
+            status: "safe",
+            reason: "not found in cache",
+        });
     }
     addToWhitelist(word) {
-        const norm = this.normalize(word);
-        this.userWhitelist.add(norm);
+        const normalized = this.normalize(word);
+        this.userWhitelist.add(normalized);
         if (this.useFastLookup) {
-            this.fastLookup[norm] = {
+            this.fastLookup[normalized] = {
                 status: "pass",
                 reason: "user added",
                 originalWord: word,
@@ -198,13 +204,13 @@ export class ProfaneDetect {
                 totalWhitelisted: defaultWhitelist.length,
                 usingFastLookup: this.useFastLookup,
                 cacheSizeBytes: this.useFastLookup
-                    ? Buffer.byteLength(JSON.stringify(this.fastLookup))
+                    ? Buffer.from(JSON.stringify(this.fastLookup)).length
                     : undefined,
             },
         };
     }
     debugMapping(char) {
-        const key = this.caseSensitive ? char : char.toLowerCase();
-        return this.homoglyphMapping[key] || char;
+        const normalizedChar = this.caseSensitive ? char : char.toLowerCase();
+        return this.homoglyphMapping[normalizedChar] || char;
     }
 }
