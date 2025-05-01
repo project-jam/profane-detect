@@ -96,7 +96,8 @@ export class ProfaneDetect {
             .normalize("NFD")
             .replace(/[\u0300-\u036F]/g, "") // Remove diacritics
             .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
-            .replace(/[-_.*+!@#$%^&()]/g, ""); // Remove common obfuscation
+            .replace(/\s+/g, "~") // Replace spaces with a delimiter
+            .replace(/[-_.*+!@#$%^&()]/g, "~"); // Replace common obfuscation symbols with a delimiter
         if (!this.caseSensitive) {
             normalized = normalized.toLowerCase();
         }
@@ -106,55 +107,40 @@ export class ProfaneDetect {
     }
     detect(text) {
         const normalizedText = this.normalize(text);
-        const words = normalizedText.split(/\s+/);
         const matches = new Set();
-        let whitelistedSkips = 0;
-        let lookupHits = 0;
-        for (const word of words) {
-            if (!word)
-                continue;
-            if (this.useFastLookup) {
-                // Fast lookup path
-                const lookupResult = this.fastLookup[word];
-                if (lookupResult) {
-                    lookupHits++;
-                    if (lookupResult.status === "banned") {
-                        matches.add(lookupResult.originalWord || word);
-                    }
-                    else if (lookupResult.status === "safe" ||
-                        lookupResult.status === "pass") {
-                        whitelistedSkips++;
-                        continue;
-                    }
-                }
-                else {
-                    // Add to cache for future
-                    this.fastLookup[word] = { status: "safe", reason: "passed checks" };
-                }
+        let whitelistedSkips = 0; // Whitelisting not fully implemented with this approach yet
+        let lookupHits = 0; // Fast lookup not fully implemented yet
+        // Iterate through normalized text and check for banned words
+        // This approach handles spaces and common symbols within words/phrases,
+        // and also merged words, by allowing delimiters between characters.
+        // It does NOT handle removed letters.
+        for (const [bannedNormalized, originalBanned] of this.normalizedBannedWords) {
+            let regexPattern;
+            if (bannedNormalized.includes('~')) {
+                // Handle banned phrases with original spaces/symbols by requiring at least one delimiter between parts
+                const parts = bannedNormalized.split('~');
+                const regexParts = parts.map(part => part.split('').join('~*'));
+                regexPattern = regexParts.join('~+');
             }
             else {
-                // Traditional path
-                if (this.normalizedWhitelist.has(word)) {
-                    whitelistedSkips++;
-                    continue;
-                }
-                for (const [bannedNormalized, originalBanned] of this
-                    .normalizedBannedWords) {
-                    if (word === bannedNormalized) {
-                        matches.add(originalBanned);
-                        break;
-                    }
-                }
+                // Handle single banned words (merged or not) by allowing zero or more delimiters between characters
+                regexPattern = bannedNormalized.split('').join('~*');
+            }
+            const regex = new RegExp(regexPattern, 'g');
+            if (regex.test(normalizedText)) {
+                matches.add(originalBanned);
             }
         }
+        // Note: The fast lookup path and whitelisting logic need to be adapted
+        // to fully support this stricter matching.
         return {
             found: matches.size > 0,
             matches: Array.from(matches),
             normalized: normalizedText,
             metrics: {
-                exactMatches: matches.size,
+                exactMatches: matches.size, // This approach doesn't distinguish fuzzy vs exact yet
                 fuzzyMatches: 0,
-                totalChecked: words.length,
+                totalChecked: normalizedText.length, // Checking the whole text
                 whitelistedSkips,
                 lookupHits: this.useFastLookup ? lookupHits : undefined,
             },

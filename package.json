@@ -1,6 +1,6 @@
 {
   "name": "@projectjam/profane-detect",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "a professionnal profane detector, using the entire homoglyph characters, a big list of bad words, and some salt and pepper >:)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,7 +34,7 @@
   "bugs": {
     "url": "https://github.com/project-jam/profane-detect/issues"
   },
-  "homepage": "https://github.com/project-jam/profane-detect#readme",
+  "homepage": "https://project-jam.is-a.dev",
   "dependencies": {},
   "devDependencies": {
     "typescript": "^5.0.0",

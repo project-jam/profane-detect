@@ -136,32 +136,44 @@ export class ProfaneDetect {
   detect(text: string): DetectionResult {
     const normalizedText = this.normalize(text);
     const matches = new Set<string>();
-    let whitelistedSkips = 0;
-    let lookupHits = 0;
+    let whitelistedSkips = 0; // Whitelisting not fully implemented with this approach yet
+    let lookupHits = 0; // Fast lookup not fully implemented yet
 
     // Iterate through normalized text and check for banned words
-    for (const [bannedNormalized, originalBanned] of this
-      .normalizedBannedWords) {
-      // Create a regex to match the banned word, allowing for delimiters
-      const regex = new RegExp(bannedNormalized.split('').join('~*'), 'g');
+    // This approach handles spaces and common symbols within words/phrases,
+    // and also merged words, by allowing delimiters between characters.
+    // It does NOT handle removed letters.
+    for (const [bannedNormalized, originalBanned] of this.normalizedBannedWords) {
+      let regexPattern;
+      if (bannedNormalized.includes('~')) {
+        // Handle banned phrases with original spaces/symbols by requiring at least one delimiter between parts
+        const parts = bannedNormalized.split('~');
+        const regexParts = parts.map(part => part.split('').join('~*'));
+        regexPattern = regexParts.join('~+');
+      } else {
+        // Handle single banned words (merged or not) by allowing zero or more delimiters between characters
+        regexPattern = bannedNormalized.split('').join('~*');
+      }
+
+      const regex = new RegExp(regexPattern, 'g');
       if (regex.test(normalizedText)) {
         matches.add(originalBanned);
       }
     }
 
-    // Note: The fast lookup path and whitelisting logic will need to be revisited
-    // to fully support this stricter matching, but this is a start.
+    // Note: The fast lookup path and whitelisting logic need to be adapted
+    // to fully support this stricter matching.
 
     return {
       found: matches.size > 0,
       matches: Array.from(matches),
       normalized: normalizedText,
       metrics: {
-        exactMatches: matches.size,
-        fuzzyMatches: 0, // This approach doesn't distinguish fuzzy vs exact yet
+        exactMatches: matches.size, // This approach doesn't distinguish fuzzy vs exact yet
+        fuzzyMatches: 0,
         totalChecked: normalizedText.length, // Checking the whole text
-        whitelistedSkips: 0, // Whitelisting not fully implemented with this approach yet
-        lookupHits: this.useFastLookup ? lookupHits : undefined, // Fast lookup not fully implemented yet
+        whitelistedSkips,
+        lookupHits: this.useFastLookup ? lookupHits : undefined,
       },
     };
   }
