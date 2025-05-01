@@ -118,6 +118,7 @@ export class ProfaneDetect {
 
   normalize(text: string): string {
     let normalized = text
+      .trim() // Trim leading/trailing whitespace
       .normalize("NFD")
       .replace(/[\u0300-\u036F]/g, "") // Remove diacritics
       .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
@@ -143,19 +144,20 @@ export class ProfaneDetect {
     // This approach handles spaces and common symbols within words/phrases,
     // and also merged words, by allowing delimiters between characters.
     // It does NOT handle removed letters.
-    for (const [bannedNormalized, originalBanned] of this.normalizedBannedWords) {
+    for (const [bannedNormalized, originalBanned] of this
+      .normalizedBannedWords) {
       let regexPattern;
-      if (bannedNormalized.includes('~')) {
+      if (bannedNormalized.includes("~")) {
         // Handle banned phrases with original spaces/symbols by requiring at least one delimiter between parts
-        const parts = bannedNormalized.split('~');
-        const regexParts = parts.map(part => part.split('').join('~*'));
-        regexPattern = regexParts.join('~+');
+        const parts = bannedNormalized.split("~");
+        const regexParts = parts.map((part) => part.split("").join("~*"));
+        regexPattern = regexParts.join("~+");
       } else {
         // Handle single banned words (merged or not) by allowing zero or more delimiters between characters
-        regexPattern = bannedNormalized.split('').join('~*');
+        regexPattern = bannedNormalized.split("").join("~*");
       }
 
-      const regex = new RegExp(regexPattern, 'g');
+      const regex = new RegExp(regexPattern, "g");
       if (regex.test(normalizedText)) {
         matches.add(originalBanned);
       }
@@ -169,7 +171,7 @@ export class ProfaneDetect {
       matches: Array.from(matches),
       normalized: normalizedText,
       metrics: {
-        exactMatches: matches.size, // This approach doesn't distinguish fuzzy vs exact yet
+        exactMatches: matches.size, // This approach doesn\'t distinguish fuzzy vs exact yet
         fuzzyMatches: 0,
         totalChecked: normalizedText.length, // Checking the whole text
         whitelistedSkips,
