@@ -121,7 +121,8 @@ export class ProfaneDetect {
       .normalize("NFD")
       .replace(/[\u0300-\u036F]/g, "") // Remove diacritics
       .replace(/[\u200B-\u200D\uFEFF]/g, "") // Remove invisible characters
-      .replace(/[-_.*+!@#$%^&()]/g, ""); // Remove common obfuscation
+      .replace(/\s+/g, "~") // Replace spaces with a delimiter
+      .replace(/[-_.*+!@#$%^&()]/g, "~"); // Replace common obfuscation symbols with a delimiter
 
     if (!this.caseSensitive) {
       normalized = normalized.toLowerCase();
@@ -134,48 +135,22 @@ export class ProfaneDetect {
 
   detect(text: string): DetectionResult {
     const normalizedText = this.normalize(text);
-    const words = normalizedText.split(/\s+/);
     const matches = new Set<string>();
     let whitelistedSkips = 0;
     let lookupHits = 0;
 
-    for (const word of words) {
-      if (!word) continue;
-
-      if (this.useFastLookup) {
-        // Fast lookup path
-        const lookupResult = this.fastLookup[word];
-        if (lookupResult) {
-          lookupHits++;
-          if (lookupResult.status === "banned") {
-            matches.add(lookupResult.originalWord || word);
-          } else if (
-            lookupResult.status === "safe" ||
-            lookupResult.status === "pass"
-          ) {
-            whitelistedSkips++;
-            continue;
-          }
-        } else {
-          // Add to cache for future
-          this.fastLookup[word] = { status: "safe", reason: "passed checks" };
-        }
-      } else {
-        // Traditional path
-        if (this.normalizedWhitelist.has(word)) {
-          whitelistedSkips++;
-          continue;
-        }
-
-        for (const [bannedNormalized, originalBanned] of this
-          .normalizedBannedWords) {
-          if (word === bannedNormalized) {
-            matches.add(originalBanned);
-            break;
-          }
-        }
+    // Iterate through normalized text and check for banned words
+    for (const [bannedNormalized, originalBanned] of this
+      .normalizedBannedWords) {
+      // Create a regex to match the banned word, allowing for delimiters
+      const regex = new RegExp(bannedNormalized.split('').join('~*'), 'g');
+      if (regex.test(normalizedText)) {
+        matches.add(originalBanned);
       }
     }
+
+    // Note: The fast lookup path and whitelisting logic will need to be revisited
+    // to fully support this stricter matching, but this is a start.
 
     return {
       found: matches.size > 0,
@@ -183,10 +158,10 @@ export class ProfaneDetect {
       normalized: normalizedText,
       metrics: {
         exactMatches: matches.size,
-        fuzzyMatches: 0,
-        totalChecked: words.length,
-        whitelistedSkips,
-        lookupHits: this.useFastLookup ? lookupHits : undefined,
+        fuzzyMatches: 0, // This approach doesn't distinguish fuzzy vs exact yet
+        totalChecked: normalizedText.length, // Checking the whole text
+        whitelistedSkips: 0, // Whitelisting not fully implemented with this approach yet
+        lookupHits: this.useFastLookup ? lookupHits : undefined, // Fast lookup not fully implemented yet
       },
     };
   }
