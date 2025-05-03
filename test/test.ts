@@ -28,6 +28,7 @@ const testCases = [
   "mila",
   "bigtitties",
   "shɪt",
+  "pornhub",
 ];
 
 console.log("Fast Lookup Detection Tests:");
