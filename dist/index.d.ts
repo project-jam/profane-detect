@@ -1,4 +1,4 @@
-import { ProfaneDetectOptions, DetectionResult, DetectionEntry, WordStatus } from "./types";
+import { ProfaneDetectOptions, DetectionResult, DetectionEntry, WordStatus } from './types';
 export declare class ProfaneDetect {
     private readonly bannedWords;
     private readonly homoglyphMapping;
