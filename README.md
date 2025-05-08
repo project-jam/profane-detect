@@ -17,7 +17,6 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 * ⚡ fast normalization and caching
 * 🌐 full unicode support
 * 📦 works with esm, commonjs, and typescript
-* ◀️ reversible-text detection (enable with `enablereversedetection`)
 
 ## working on
 
@@ -25,6 +24,7 @@ universal profanity detection that handles obfuscated text, homoglyphs, and mult
 * [ ] universal language support
 * [ ] custom homoglyph symbols
 * [ ] slangs
+* [ ] reversed text (tried it, but coming soon)
 
 ## installation
 
