@@ -39,7 +39,7 @@ npm install @projectjam/profane-detect
 ```javascript
 import { profanedetect } from '@projectjam/profane-detect';
 
-// reverse detection disabled by default
+// reverse detection disabled by default (coming soon
 const detector = new profanedetect({ enablereversedetection: false });
 
 const result = detector.detect("hello f*ck");
@@ -51,7 +51,7 @@ console.log(result);
 ```javascript
 import { profanedetect } from '@projectjam/profane-detect';
 
-// reversals turned on for catches like "reggin"
+// reversals turned on for catches like "reggin" (coming soon)
 const detector = new profanedetect({ enablereversedetection: true });
 
 const result = detector.detect("reggin");
@@ -81,7 +81,7 @@ const detector = new profanedetect({
   // custom character mapping
   homoglyphmapping: { 'α': 'a', 'β': 'b' },
 
-  // toggle reversed-text scanning
+  // toggle reversed-text scanning (coming soon)
   enablereversedetection: true
 });
 ```
@@ -101,7 +101,7 @@ detector.detect("f.u.c.k");
 // similar characters
 detector.detect("ſuck");
 
-// reversed text
+// reversed text (coming soon)
 detector.detect("reggin");
 ```
 
