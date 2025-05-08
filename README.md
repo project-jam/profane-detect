@@ -1,23 +1,23 @@
-[![NPM](https://nodei.co/npm/@projectjam/profane-detect.png?downloads=true\&downloadRank=true\&stars=true)](https://nodei.co/npm/@projectjam/profane-detect/)
+[![npm](https://nodei.co/npm/@projectjam/profane-detect.png?downloads=true\&downloadrank=true\&stars=true)](https://nodei.co/npm/@projectjam/profane-detect/)
 
-> \[!NOTE]
+> \[!note]
 > the bad words are extracted from the [profane-words](https://github.com/zacanger/profane-words) package, and modified by us
 >
 > including the homoglyph characters are extracted from the unicode homoglyph list, and modified by us to ensure safety
 
 # @projectjam/profane-detect
 
-Universal profanity detection that handles obfuscated text, homoglyphs, and multiple character variations. Detects attempts to bypass filters using special characters, similar-looking letters, subtle modifications, or reversed text (optional!).
+universal profanity detection that handles obfuscated text, homoglyphs, and multiple character variations. detects attempts to bypass filters using special characters, similar-looking letters, subtle modifications, or reversed text (optional!).
 
 ## features
 
-* 🔍 Robust detection of obfuscated profanity
-* 🔄 Homoglyph mapping (similar-looking characters)
-* 📝 JSON output with metrics and timestamps
-* ⚡ Fast normalization and caching
-* 🌐 Full Unicode support
-* 📦 Works with ESM, CommonJS, and TypeScript
-* ◀️ reversible-text detection (enable with `enableReverseDetection`)
+* 🔍 robust detection of obfuscated profanity
+* 🔄 homoglyph mapping (similar-looking characters)
+* 📝 json output with metrics and timestamps
+* ⚡ fast normalization and caching
+* 🌐 full unicode support
+* 📦 works with esm, commonjs, and typescript
+* ◀️ reversible-text detection (enable with `enablereversedetection`)
 
 ## working on
 
@@ -37,10 +37,10 @@ npm install @projectjam/profane-detect
 ### basic detection
 
 ```javascript
-import { ProfaneDetect } from '@projectjam/profane-detect';
+import { profanedetect } from '@projectjam/profane-detect';
 
 // reverse detection disabled by default
-const detector = new ProfaneDetect({ enableReverseDetection: false });
+const detector = new profanedetect({ enablereversedetection: false });
 
 const result = detector.detect("hello f*ck");
 console.log(result);
@@ -49,10 +49,10 @@ console.log(result);
 ### enable reverse-text detection
 
 ```javascript
-import { ProfaneDetect } from '@projectjam/profane-detect';
+import { profanedetect } from '@projectjam/profane-detect';
 
 // reversals turned on for catches like "reggin"
-const detector = new ProfaneDetect({ enableReverseDetection: true });
+const detector = new profanedetect({ enablereversedetection: true });
 
 const result = detector.detect("reggin");
 console.log(result);
@@ -61,28 +61,28 @@ console.log(result);
 ### json output
 
 ```javascript
-const jsonResult = detector.toJson("hello f*ck");
-console.log(jsonResult);
+const jsonresult = detector.tojson("hello f*ck");
+console.log(jsonresult);
 ```
 
 ## custom configuration
 
 ```typescript
-const detector = new ProfaneDetect({
+const detector = new profanedetect({
   // custom safe words to ignore
-  safeWords: ["grass", "assessment"],
+  safewords: ["grass", "assessment"],
 
   // case sensitive matching
-  caseSensitive: true,
+  casesensitive: true,
 
   // custom banned words
-  bannedWords: ["bad", "words"],
+  bannedwords: ["bad", "words"],
 
   // custom character mapping
-  homoglyphMapping: { 'α': 'a', 'β': 'b' },
+  homoglyphmapping: { 'α': 'a', 'β': 'b' },
 
   // toggle reversed-text scanning
-  enableReverseDetection: true
+  enablereversedetection: true
 });
 ```
 
@@ -111,19 +111,19 @@ detector.detect("reggin");
 
 ```typescript
 constructor(options?: {
-  safeWords?: string[];
-  caseSensitive?: boolean;
-  bannedWords?: string[];
-  homoglyphMapping?: Record<string, string>;
+  safewords?: string[];
+  casesensitive?: boolean;
+  bannedwords?: string[];
+  homoglyphmapping?: record<string, string>;
   /**
    * toggle reversed-text detection (default: false)
    */
-  enableReverseDetection?: boolean;
+  enablereversedetection?: boolean;
   /**
-   * Enable fast lookup cache for better performance
+   * enable fast lookup cache for better performance
    * @default true
    */
-  useFastLookup?: boolean;
+  usefastlookup?: boolean;
 });
 ```
 
@@ -132,18 +132,18 @@ constructor(options?: {
 #### detect()
 
 ```typescript
-detect(text: string): DetectionResult & { reversedMatches?: string[] }
+detect(text: string): detectionresult & { reversedmatches?: string[] }
 ```
 
-* **`reversedMatches`** only present when `enableReverseDetection` is `true`.
+* **`reversedmatches`** only present when `enablereversedetection` is `true`.
 
-#### toJson()
+#### tojson()
 
 ```typescript
-toJson(text: string): DetectionEntryWithFlags
+tojson(text: string): detectionentrywithflags
 ```
 
-* **`flags.reversedDetected`** indicates if reversed profanity was found.
+* **`flags.reverseddetected`** indicates if reversed profanity was found.
 
 ## fast lookup cache
 
@@ -151,17 +151,17 @@ the package includes a pre-built cache of common profane words for fast lookup. 
 
 ```typescript
 // enable fast lookup
-const detector = new ProfaneDetect({
-  useFastLookup: true,
-  safeWords: ["custom", "safe", "words"],
-  enableReverseDetection: true
+const detector = new profanedetect({
+  usefastlookup: true,
+  safewords: ["custom", "safe", "words"],
+  enablereversedetection: true
 });
 
 // check individual words quickly
-const status = detector.checkWord("someword");
+const status = detector.checkword("someword");
 console.log(status);
 ```
 
 ## contributing
 
-Pull requests are welcome! For major changes, please open an issue first or [email us](mailto:contact@project-jam.is-a.dev). Make sure tests are updated to cover new options—otherwise, no more problems with the tests! 🚀
+pull requests are welcome! for major changes, please open an issue first or [email us](mailto:contact@project-jam.is-a.dev). make sure tests are updated to cover new options—otherwise, no more problems with the tests! 🚀
