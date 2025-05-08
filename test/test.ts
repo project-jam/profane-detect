@@ -30,6 +30,7 @@ const testCases = [
   "shɪt", // custom character
   "pornhub",
   "reggin", // reversed text
+  "r-e-g(g)i-n",
 ];
 
 console.log("Fast Lookup Detection Tests:");

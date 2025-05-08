@@ -6,6 +6,7 @@ export declare class ProfaneDetect {
     private readonly useFastLookup;
     private readonly fastLookup;
     private readonly userWhitelist;
+    private readonly separatorRegex;
     constructor(options?: ProfaneDetectOptions);
     private initializeCaches;
     normalize(text: string): string;
