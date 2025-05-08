@@ -3,10 +3,6 @@ export interface ProfaneDetectOptions {
   homoglyphMapping?: Record<string, string>;
   safeWords?: string[];
   caseSensitive?: boolean;
-  /**
-   * Enable fast lookup cache for better performance
-   * @default true
-   */
   useFastLookup?: boolean;
 }
 
@@ -49,4 +45,12 @@ export interface DetectionEntry {
     usingFastLookup: boolean;
     cacheSizeBytes?: number;
   };
+}
+
+export interface DetectionEntryFlags {
+  reversedDetected: boolean;
+}
+
+export interface DetectionEntryWithFlags extends DetectionEntry {
+  flags: DetectionEntryFlags;
 }

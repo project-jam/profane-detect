@@ -27,8 +27,9 @@ const testCases = [
   "assessment pie cream", // all safe
   "mila",
   "bigtitties",
-  "shɪt",
+  "shɪt", // custom character
   "pornhub",
+  "reggin", // reversed text
 ];
 
 console.log("Fast Lookup Detection Tests:");
