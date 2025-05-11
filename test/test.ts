@@ -64,7 +64,7 @@ console.log("----------------");
 // Test adding new words to whitelist
 detector.addToWhitelist("cookie");
 console.log('\nTesting after adding "cookie" to whitelist:');
-console.log(detector.checkWord("cookie"));
+console.log(detector.detect("cookie"));
 console.log(detector.detect("cookie f*ck"));
 
 console.log("\nPerformance Test:");

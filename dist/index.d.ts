@@ -1,4 +1,4 @@
-import { ProfaneDetectOptions, DetectionResult, DetectionEntryWithFlags, WordStatus } from "./types";
+import { ProfaneDetectOptions, DetectionResult, DetectionEntry, WordStatus } from "./types";
 export declare class ProfaneDetect {
     private readonly bannedWords;
     private readonly homoglyphMapping;
@@ -6,15 +6,14 @@ export declare class ProfaneDetect {
     private readonly useFastLookup;
     private readonly fastLookup;
     private readonly userWhitelist;
-    private readonly separatorRegex;
+    private readonly normalizedBannedWords;
+    private readonly normalizedWhitelist;
     constructor(options?: ProfaneDetectOptions);
     private initializeCaches;
     normalize(text: string): string;
-    detect(text: string): DetectionResult & {
-        reversedMatches: string[];
-    };
+    detect(text: string): DetectionResult;
     checkWord(word: string): WordStatus;
     addToWhitelist(word: string): void;
-    toJson(text: string): DetectionEntryWithFlags;
+    toJson(text: string): DetectionEntry;
     debugMapping(char: string): string;
 }
