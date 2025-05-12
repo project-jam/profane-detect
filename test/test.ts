@@ -30,8 +30,9 @@ const testCases = [
   "shɪt", // custom character
   "pornhub",
   "reggin", // reversed text
-  "r-e-g(g)i-n",
+  "r-e-g(g)i-n", // with symbols
   "https://formalsnake.dev",
+  "inside of u ❤️ (i ain't doing smh SUS)",
 ];
 
 console.log("Fast Lookup Detection Tests:");
