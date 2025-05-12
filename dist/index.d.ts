@@ -4,9 +4,10 @@ export declare class ProfaneDetect {
     private readonly homoglyphMapping;
     private readonly caseSensitive;
     private readonly useFastLookup;
+    private readonly useReversible;
     private readonly fastLookup;
     private readonly userWhitelist;
-    private readonly normalizedBannedWords;
+    private readonly normalizedBannedMap;
     private readonly normalizedWhitelist;
     constructor(options?: ProfaneDetectOptions);
     private initializeCaches;

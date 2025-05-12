@@ -31,6 +31,7 @@ const testCases = [
   "pornhub",
   "reggin", // reversed text
   "r-e-g(g)i-n",
+  "https://formalsnake.dev",
 ];
 
 console.log("Fast Lookup Detection Tests:");

@@ -12,20 +12,19 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Helpers to load your data files
 function loadHomoglyphMapping(filePath: string): Record<string, string> {
   const mapping: Record<string, string> = {};
-  const lines = fs
+  for (const line of fs
     .readFileSync(filePath, "utf-8")
     .split(/\r?\n/)
-    .filter(Boolean);
-  for (const line of lines) {
+    .filter(Boolean)) {
     const chars = Array.from(line);
     const base = chars.find((c) => c.trim()) || chars[0];
     for (const c of chars) if (c.trim()) mapping[c] = base;
   }
   return mapping;
 }
-
 function loadWordList(filePath: string): string[] {
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
@@ -38,7 +37,7 @@ const defaultHomoglyphMapping = loadHomoglyphMapping(CHAR_MAPPING_PATH);
 const defaultBannedWords = loadWordList(WORDS_PATH);
 const defaultWhitelist = loadWordList(WHITELIST_PATH);
 
-// Leetspeak digit-to-letter mapping
+// Leetspeak digit→letter map
 const digitMap: Record<string, string> = {
   "0": "o",
   "1": "i",
@@ -53,9 +52,10 @@ export class ProfaneDetect {
   private readonly homoglyphMapping: Record<string, string>;
   private readonly caseSensitive: boolean;
   private readonly useFastLookup: boolean;
+  private readonly useReversible: boolean;
   private readonly fastLookup: FastLookup = {};
   private readonly userWhitelist: Set<string> = new Set();
-  private readonly normalizedBannedWords: Map<string, string> = new Map();
+  private readonly normalizedBannedMap: Map<string, string> = new Map();
   private readonly normalizedWhitelist: Set<string> = new Set();
 
   constructor(options?: ProfaneDetectOptions) {
@@ -64,28 +64,28 @@ export class ProfaneDetect {
       options?.homoglyphMapping || defaultHomoglyphMapping;
     this.caseSensitive = options?.caseSensitive || false;
     this.useFastLookup = options?.useFastLookup !== false;
+    // default reversible = true
+    this.useReversible = options?.useReversible !== false;
     this.initializeCaches(options?.safeWords);
   }
 
   private initializeCaches(safeWords?: string[]): void {
-    // Always populate normalizedBannedWords and normalizedWhitelist
+    // normalize banned & whitelist
     for (const w of this.bannedWords) {
-      this.normalizedBannedWords.set(this.normalize(w), w);
+      this.normalizedBannedMap.set(this.normalize(w), w);
     }
     for (const w of defaultWhitelist) {
       this.normalizedWhitelist.add(this.normalize(w));
     }
 
     if (this.useFastLookup) {
-      // Populate fastLookup for default whitelist
       for (const w of defaultWhitelist) {
         this.fastLookup[this.normalize(w)] = {
-          status: "safe", // Default whitelist words are initially considered "safe"
+          status: "safe",
           reason: "default whitelist",
           originalWord: w,
         };
       }
-      // Populate fastLookup for banned words
       for (const w of this.bannedWords) {
         this.fastLookup[this.normalize(w)] = {
           status: "banned",
@@ -95,12 +95,11 @@ export class ProfaneDetect {
       }
     }
 
-    // Process user-provided safe words
+    // user-provided safe words override
     for (const w of safeWords || []) {
       const n = this.normalize(w);
-      this.userWhitelist.add(n); // Add to userWhitelist set
+      this.userWhitelist.add(n);
       if (this.useFastLookup) {
-        // If using fast lookup, override with "pass" status
         this.fastLookup[n] = {
           status: "pass",
           reason: "user whitelist",
@@ -111,133 +110,110 @@ export class ProfaneDetect {
   }
 
   normalize(text: string): string {
-    let currentText = text;
+    let s = this.caseSensitive ? text : text.toLowerCase();
+    s = s.normalize("NFD").replace(/[\u0300-\u036F]/g, "");
+    s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
 
-    // 1. Initial préparation: case normalization, NFD, remove diacritics & zero-width chars
-    if (!this.caseSensitive) {
-      currentText = currentText.toLowerCase();
+    const out: string[] = [];
+    for (const ch of Array.from(s)) {
+      let c = this.homoglyphMapping[ch] || ch;
+      if (digitMap[c]) c = digitMap[c]!;
+      if (/[a-zA-Z]/.test(c)) out.push(c);
     }
-    currentText = currentText
-      .normalize("NFD")
-      .replace(/[\u0300-\u036F]/g, "");
-    currentText = currentText.replace(/[\u200B-\u200D\uFEFF]/g, "");
-
-    // 2. Character-by-character processing
-    let resultChars: string[] = [];
-    for (const char of Array.from(currentText)) {
-      let c = char; // Start with the character from the prepared string
-
-      // Apply homoglyph mapping first
-      // If !this.caseSensitive, c is already lowercase.
-      // If this.caseSensitive, c is in its original case for homoglyph lookup.
-      c = this.homoglyphMapping[c] || c;
-
-      // Then, apply leetspeak digit-to-letter mapping to the result of homoglyph
-      // digitMap expects keys like '0', '1', etc.
-      if (digitMap[c]) {
-        c = digitMap[c]!;
-      }
-
-      // 3. Filter to keep only actual letters (a-z, A-Z)
-      // This ensures that after all transformations, only alphabetic characters remain.
-      if (/[a-zA-Z]/.test(c)) {
-        resultChars.push(c);
-      }
-    }
-    return resultChars.join("");
+    return out.join("");
   }
 
   detect(text: string): DetectionResult {
-    const normalizedText = this.normalize(text);
-    const words = normalizedText.split(/[^a-zA-Z0-9]+/).filter(Boolean);
-    const detectedProfaneWords = new Set<string>();
+    const detected = new Set<string>();
     let whitelistedSkips = 0;
     let lookupHits = 0;
 
-    for (const currentWord of words) {
-      let wordStatus: WordStatus | undefined;
-      let isBannedBySubstring = false;
-      let bestMatchOriginalBannedWord = "";
-      let longestNormalizedBannedLength = 0;
+    // Prepare for O(1) checks
+    const bannedKeys = this.normalizedBannedMap; // Map<string,orig>
+    const bannedSet = new Set(bannedKeys.keys()); // Set<string>
 
+    // Split on whitespace: keep tokens intact
+    const rawTokens = text.split(/\s+/).filter(Boolean);
+
+    for (const raw of rawTokens) {
+      const normRaw = this.normalize(raw);
+
+      // 1) Fast lookup / whitelist
       if (this.useFastLookup) {
         lookupHits++;
-        const cachedEntry = this.fastLookup[currentWord];
-        if (cachedEntry) {
-          wordStatus = cachedEntry;
-          if (cachedEntry.status === "banned") {
-            // If cached as banned, use this info directly
-            detectedProfaneWords.add(cachedEntry.originalWord || currentWord);
-            continue; // Move to the next word
-          } else if (cachedEntry.status === "pass" || cachedEntry.status === "safe") {
-            whitelistedSkips++;
-            continue; // Word is whitelisted/safe by cache, move to the next word
-          }
+        const cached = this.fastLookup[normRaw];
+        if (cached) {
+          if (cached.status === "banned") detected.add(cached.originalWord!);
+          else whitelistedSkips++;
+          continue;
         }
       }
-
-      // If not resolved by cache, or cache not used:
-      // 1. Check against whitelists (exact match for currentWord)
-      if (this.userWhitelist.has(currentWord) || this.normalizedWhitelist.has(currentWord)) {
+      if (
+        this.userWhitelist.has(normRaw) ||
+        this.normalizedWhitelist.has(normRaw)
+      ) {
         whitelistedSkips++;
-        if (this.useFastLookup && !wordStatus) { // Update cache only if not already handled
-          this.fastLookup[currentWord] = {
-            status: this.userWhitelist.has(currentWord) ? "pass" : "safe",
-            reason: this.userWhitelist.has(currentWord) ? "user whitelist" : "default whitelist",
-            originalWord: currentWord,
+        if (this.useFastLookup) {
+          this.fastLookup[normRaw] = {
+            status: this.userWhitelist.has(normRaw) ? "pass" : "safe",
+            reason: this.userWhitelist.has(normRaw)
+              ? "user whitelist"
+              : "default whitelist",
+            originalWord: raw,
           };
         }
-        continue; // Word is whitelisted, skip to next word
+        continue;
       }
 
-      // 2. Check for banned substrings if not whitelisted
-      // Find the longest matching normalized banned word
-      for (const [
-        normalizedBanned,
-        originalBanned,
-      ] of this.normalizedBannedWords) {
-        if (currentWord.includes(normalizedBanned)) {
-          if (normalizedBanned.length > longestNormalizedBannedLength) {
-            longestNormalizedBannedLength = normalizedBanned.length;
-            bestMatchOriginalBannedWord = originalBanned;
-            isBannedBySubstring = true;
-          }
-        }
-        const reversedCurrentWord = currentWord.split("").reverse().join("");
-        if (reversedCurrentWord.includes(normalizedBanned)) {
-          if (normalizedBanned.length > longestNormalizedBannedLength) {
-            longestNormalizedBannedLength = normalizedBanned.length;
-            bestMatchOriginalBannedWord = originalBanned;
-            isBannedBySubstring = true;
-          }
-        }
-      }
+      // Strip non-letters once
+      const hasSep = /[^A-Za-z]/.test(raw);
+      const stripped = raw.replace(/[^A-Za-z]/g, "");
+      const normStr = this.normalize(stripped);
 
-      if (isBannedBySubstring) {
-        detectedProfaneWords.add(bestMatchOriginalBannedWord);
-        if (this.useFastLookup && !wordStatus) { // Update cache if not already handled
-          this.fastLookup[currentWord] = {
+      // 2) Obfuscated exact match
+      if (hasSep && bannedSet.has(normStr)) {
+        detected.add(bannedKeys.get(normStr)!);
+        if (this.useFastLookup) {
+          this.fastLookup[normRaw] = {
             status: "banned",
-            reason: "contains banned substring",
-            originalWord: bestMatchOriginalBannedWord,
+            reason: "obfuscated exact match",
+            originalWord: bannedKeys.get(normStr)!,
           };
         }
-      } else if (this.useFastLookup && !wordStatus) { // Word is not whitelisted, not banned by substring
-        this.fastLookup[currentWord] = {
-          status: "safe",
-          reason: "passed checks",
-        };
+        continue;
+      }
+
+      // 3) Reversible detection (plain or obfuscated)
+      if (this.useReversible) {
+        // reverse the LETTER-only normalized string
+        const revNorm = normStr.split("").reverse().join("");
+        if (bannedSet.has(revNorm)) {
+          detected.add(bannedKeys.get(revNorm)!);
+          if (this.useFastLookup) {
+            this.fastLookup[normRaw] = {
+              status: "banned",
+              reason: "reversible match",
+              originalWord: bannedKeys.get(revNorm)!,
+            };
+          }
+          continue;
+        }
+      }
+
+      // 4) Fallback safe cache
+      if (this.useFastLookup && !this.fastLookup[normRaw]) {
+        this.fastLookup[normRaw] = { status: "safe", reason: "passed checks" };
       }
     }
 
     return {
-      found: detectedProfaneWords.size > 0,
-      matches: Array.from(detectedProfaneWords),
-      normalized: normalizedText,
+      found: detected.size > 0,
+      matches: Array.from(detected),
+      normalized: this.normalize(text),
       metrics: {
-        exactMatches: detectedProfaneWords.size,
+        exactMatches: detected.size,
         fuzzyMatches: 0,
-        totalChecked: words.length,
+        totalChecked: rawTokens.length,
         whitelistedSkips,
         lookupHits: this.useFastLookup ? lookupHits : undefined,
       },
@@ -283,7 +259,7 @@ export class ProfaneDetect {
         totalBannedWords: this.bannedWords.length,
         totalWhitelisted: defaultWhitelist.length,
         usingFastLookup: this.useFastLookup,
-        usingReversible: true,
+        usingReversible: this.useReversible,
         cacheSizeBytes: this.useFastLookup
           ? Buffer.from(JSON.stringify(this.fastLookup)).length
           : undefined,
